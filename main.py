@@ -20,34 +20,17 @@ def get_processed_files(csv_file):
         return []
     with open(csv_file, mode='r', newline='') as file:
         reader = csv.reader(file)
-        return [row[0] for row in reader if row and row[0]] #Check for rows that are not empty and return the list of files
+        return [row[0] for row in reader if row and row[0]]  # Check for rows that are not empty and return the list of files
 
 
 # Function to save new files to the CSV
 def save_to_csv(new_files, csv_file):
     with open(csv_file, mode='a', newline='') as file:
-        writer = csv.writer(file, quotechar=',')
+        writer = csv.writer(file)
+        #print(new_files)
         writer.writerows(new_files)
 
-
-
-# Helper function to save completion time and src_path to a CSV file
-
 def search_keyword_in_files(directory, keyword1, keyword2, processed_files):
-    """
-  Searches for a specific keyword combination in text files within a directory
-  or checks for "SUCCESS" in "process.log.txt".
-
-  Args:
-      directory (str): The directory to search for text files.
-      keyword1 (str): The first keyword to search for (comma separated).
-      keyword2 (str): The second keyword to search for.
-      processed_files (list): A list of file paths that have already been processed.
-
-  Returns:
-      list: A list of file paths and timestamps where the keyword combination
-            was found or "SUCCESS" was found in "process.log.txt".
-  """
     new_files = []
     keyword1_words = keyword1.split(',')
     keyword2_words = keyword2.split()
@@ -60,7 +43,6 @@ def search_keyword_in_files(directory, keyword1, keyword2, processed_files):
                     with open(file_path, 'r') as f:
                         contents = f.read()
                         if "SUCCESS" in contents:
-                            # Append "users.log.txt" instead of "process.log.txt"
                             users_log_path = os.path.join(root, "users.log.txt")
                             if users_log_path not in processed_files:
                                 timestamp = datetime.now().strftime('%m/%d/%Y %I:%M:%S %p')
@@ -79,12 +61,9 @@ def search_keyword_in_files(directory, keyword1, keyword2, processed_files):
                                     timestamp = datetime.now().strftime('%m/%d/%Y %I:%M:%S %p')
                                     new_files.append([file_path, timestamp])
                                     break
-
-
     except Exception as e:
         print(f"Directory not searchable")
     return new_files
-
 
 
 def save_completion_time(src_path, time_taken):
@@ -92,8 +71,6 @@ def save_completion_time(src_path, time_taken):
     with open('Completion times.csv', 'a', newline='') as file:
         writer = csv.writer(file)
         writer.writerow([src_path, completion_time, time_taken])
-
-
 
 
 # Run automation script if there are jobs in queue
@@ -109,7 +86,6 @@ def get_jobs_in_queue(que, log_text_widget):
         tracker.look_for_completion(curr)
         end = datetime.now().strftime('%m/%d/%Y %I:%M:%S %p')
         time_taken = datetime.strptime(end, '%m/%d/%Y %I:%M:%S %p') - datetime.strptime(start, '%m/%d/%Y %I:%M:%S %p')
-        # log on the application
         log_text_widget.insert(tk.END, f"Time taken to complete: {time_taken}\n")
         log_text_widget.insert(tk.END, "-------------------------\n")
         log_text_widget.yview(tk.END)
@@ -180,6 +156,10 @@ class Application(tk.Tk):
         self.processed_files_listbox = tk.Listbox(self, width=100, height=10, font=('Helvetica', 10))
         self.processed_files_listbox.pack(pady=5)
 
+        # Add the remove button
+        self.remove_button = ttk.Button(self, text="Remove Selected File", command=self.remove_selected_file)
+        self.remove_button.pack(pady=10)
+
     def browse_directory(self):
         self.directory_to_search = filedialog.askdirectory()
         self.directory_entry.delete(0, tk.END)
@@ -240,7 +220,7 @@ class Application(tk.Tk):
         if schedule_time < now:
             schedule_time += timedelta(days=1)
 
-        delay = (schedule_time - now).total_seconds()  # Delay in seconds from now until scheduled time
+        delay = (schedule_time - now).total_seconds()
 
         self.log_text.config(state=tk.NORMAL)
         self.log_text.insert(tk.END,
@@ -251,9 +231,35 @@ class Application(tk.Tk):
         threading.Timer(delay, self.run_ocr_threaded).start()
         self.schedule_button.config(state=tk.DISABLED)
 
+    def remove_selected_file(self):
+        selected_idx = self.processed_files_listbox.curselection()
+        if selected_idx:
+            selected_file = self.processed_files_listbox.get(selected_idx[0])
+            qocr_done_path = selected_file+"/frames/qocr-done.txt"
+            confirmation = messagebox.askyesno("Remove File", f"Do you want to remove {selected_file} from the processed list?")
+            if confirmation:
+                self.processed_files.pop(selected_idx[0])
+                #add the code to delete the qocr-done.txt file, trigger for qocr.exe that file has been OCR'd already
+                if os.path.isfile(qocr_done_path):
+                    try:
+                        os.remove(qocr_done_path)
+                    except PermissionError:
+                        print(f"Permission denied: Unable to delete '{qocr_done_path}'.")
+                self.update_processed_files_listbox()
+                self.save_processed_files_to_csv()
+                messagebox.showinfo("Info", f"{selected_file} has been removed from the processed list.")
+
+    def save_processed_files_to_csv(self):
+        with open(csv_file_path, mode='w', newline='') as file:
+            writer = csv.writer(file)
+            for processed_file in self.processed_files:
+                writer.writerow([processed_file])
+
 
 if __name__ == '__main__':
     app = Application()
     app.update_processed_files_listbox()
     app.mainloop()
+
+
 
