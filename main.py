@@ -8,6 +8,7 @@ import tkinter as tk
 import threading
 from tkinter import filedialog, messagebox, ttk, scrolledtext
 
+
 # define the keywords and the directory to search
 keyword1 = "Mekel,SUCCESS"
 keyword2 = "Mekel,save"
